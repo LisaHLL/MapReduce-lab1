@@ -2,6 +2,7 @@ package mapreduce
 
 import (
 	"hash/fnv"
+	"os"
 )
 
 // doMap manages one map task: it reads one of the input files
