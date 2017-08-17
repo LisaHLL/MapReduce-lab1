@@ -1,5 +1,13 @@
 package mapreduce
 
+import (
+	"encoding/json"
+	//"fmt"
+	"log"
+	"os"
+	"sort"
+)
+
 // doReduce manages one reduce task: it reads the intermediate
 // key/value pairs (produced by the map phase) for this task, sorts the
 // intermediate key/value pairs by key, calls the user-defined reduce function
@@ -43,4 +51,54 @@ func doReduce(
 	// }
 	// file.Close()
 	//
+	data := make(map[string][]string)
+	for i := 0; i < nMap; i++ {
+		file, err := os.Open(reduceName(jobName, i, reduceTaskNumber))
+		if err != nil {
+			log.Fatal("Check commom_reduce.go", err)
+		}
+		defer file.Close()
+
+		dec := json.NewDecoder(file)
+		var kv KeyValue
+		err = dec.Decode(&kv)
+		for err == nil {
+			_, exists := data[kv.Key]
+			if !exists {
+				data[kv.Key] = make([]string, 0)
+			}
+			data[kv.Key] = append(data[kv.Key], kv.Value)
+			err = dec.Decode(&kv)
+		}
+		var keys []string
+		for key, _ := range data {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		var res []KeyValue
+		for _, key := range keys {
+			v := reduceF(key, data[key])
+			kv := KeyValue{Key: key, Value: v}
+			res = append(res, kv)
+		}
+
+		output, err := os.Create(outFile)
+		if err != nil {
+			log.Fatal("Check commom_reduce.go", err)
+		}
+		defer output.Close()
+
+		enc := json.NewEncoder(output)
+
+		for _, kv := range res {
+			enc.Encode(kv)
+		}
+
+	}
 }
+
+//type strs []string
+//
+//func (a strs) Len() int           { return len(a) }
+//func (a strs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+//func (a strs) Less(i, j int) bool { return a[i] < a[j] }

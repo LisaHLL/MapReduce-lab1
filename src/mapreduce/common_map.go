@@ -1,7 +1,11 @@
 package mapreduce
 
 import (
+	"encoding/json"
+	//"fmt"
 	"hash/fnv"
+	"io/ioutil"
+	"log"
 	"os"
 )
 
@@ -54,6 +58,40 @@ func doMap(
 	//
 	// Remember to close the file after you have written all the values!
 	//
+	/*        Read file        */
+	file, err := os.Open(inFile)
+	if err != nil {
+		log.Fatal("Check common_map.go: ", err)
+	}
+	defer file.Close()
+	input, err := ioutil.ReadFile(inFile)
+	//fileInfo, err := file.Stat()
+	//input := make([]byte, fileInfo.Size())
+	//bytesRead, err := file.Read(input)
+	if err != nil {
+		log.Fatal("Check common_map.go: ", err)
+	}
+
+	//fmt.Print("bytesRead", bytesRead)
+	fds := make([]*os.File, nReduce)
+	enc := make([]*json.Encoder, nReduce)
+	for i := 0; i < nReduce; i++ {
+		fileName := reduceName(jobName, mapTaskNumber, i)
+		fds[i], err = os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0666)
+		//fds[i], err = os.Create(fileName)
+		defer fds[i].Close()
+		enc[i] = json.NewEncoder(fds[i])
+		//encoder := json.NewEncoder(fds[i])
+		//enc = append(enc, encoder)
+	}
+	kv := mapF(inFile, string(input))
+
+	for _, value := range kv {
+		err := enc[ihash(value.Key)%nReduce].Encode(&value)
+		if err != nil {
+			log.Fatal("Check common_map.go: ", err)
+		}
+	}
 }
 
 func ihash(s string) int {
